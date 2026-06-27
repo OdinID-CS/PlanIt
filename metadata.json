@@ -1,0 +1,6 @@
+{
+  "name": "PlanIt",
+  "description": "Instant Study/Project Planner. Create structured, day-by-day action plans from goals and deadlines with an interactive AI study buddy.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
