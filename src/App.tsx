@@ -31,6 +31,7 @@ import {
 import { StudyPlan, DayPlan, Task, ChatMessage } from "./types";
 import PlanForm from "./components/PlanForm";
 import StudyBuddyChat from "./components/StudyBuddyChat";
+import LandingPage from "./components/LandingPage";
 
 export default function App() {
   const [activePlan, setActivePlan] = useState<StudyPlan | null>(() => {
@@ -38,6 +39,8 @@ export default function App() {
     return saved ? JSON.parse(saved) : null;
   });
 
+  const [viewMode, setViewMode] = useState<'landing' | 'setup'>('landing');
+  const [initialGoalPreset, setInitialGoalPreset] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -80,6 +83,45 @@ export default function App() {
     }
   }, [selectedDayNumber, activePlan?.id]);
 
+  const safeFetchJson = async (url: string, options: RequestInit) => {
+    let response;
+    try {
+      response = await fetch(url, options);
+    } catch (networkError: any) {
+      throw new Error("Unable to reach the server. Please check your internet connection and try again.");
+    }
+
+    const contentType = response.headers.get("content-type");
+    const isJson = contentType && contentType.includes("application/json");
+
+    if (!response.ok) {
+      if (isJson) {
+        try {
+          const errData = await response.json();
+          throw new Error(errData.error || `Server error (Status ${response.status})`);
+        } catch (jsonErr) {
+          throw new Error(`Server error with status code ${response.status}`);
+        }
+      } else {
+        const text = await response.text();
+        console.error("Non-JSON error response from server:", text);
+        throw new Error(`The server returned an invalid HTML error response (Status ${response.status}). This often means the API key is missing or invalid, or the server crashed. Please make sure GEMINI_API_KEY is configured in Settings > Secrets.`);
+      }
+    }
+
+    if (!isJson) {
+      const text = await response.text();
+      console.error("Expected JSON but received:", text);
+      throw new Error("Received an unexpected HTML response from the server instead of JSON data. This typically indicates a routing error, a server crash, or an issue with the API key configuration.");
+    }
+
+    try {
+      return await response.json();
+    } catch (parseErr) {
+      throw new Error("Failed to parse the server's response. The data received was not valid JSON.");
+    }
+  };
+
   // Handle plan generation from form
   const handleGeneratePlan = async (formData: {
     goal: string;
@@ -92,19 +134,12 @@ export default function App() {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch("/api/generate-plan", {
+      const planData = await safeFetchJson("/api/generate-plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
       });
 
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || "Failed to generate study plan.");
-      }
-
-      const planData = await response.json();
-      
       // Inject completed field to tasks
       const formattedDays = planData.days.map((day: any) => ({
         ...day,
@@ -165,7 +200,7 @@ export default function App() {
     try {
       const activeDay = activePlan?.days.find((d) => d.dayNumber === selectedDayNumber) || null;
 
-      const response = await fetch("/api/chat-buddy", {
+      const data = await safeFetchJson("/api/chat-buddy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -176,11 +211,6 @@ export default function App() {
         }),
       });
 
-      if (!response.ok) {
-        throw new Error("Failed to communicate with Study Buddy API.");
-      }
-
-      const data = await response.json();
       const assistantMsg: ChatMessage = {
         role: "assistant",
         content: data.reply,
@@ -250,6 +280,9 @@ export default function App() {
       setChatContextTask(null);
       setChatContextDay(null);
       setChatOpen(false);
+      setViewMode('setup'); // Goes directly to setup form so a new plan can be created fresh
+      setInitialGoalPreset(""); // Resets the form inputs back to empty
+      setIsLoading(false); // Make sure loading state is properly reset so the button is never stuck
     }
   };
 
@@ -298,21 +331,47 @@ export default function App() {
       <div className="flex-1 flex overflow-hidden relative">
         <AnimatePresence mode="wait">
           {!activePlan ? (
-            <motion.div
-              key="setup"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="flex-1 overflow-y-auto py-10 px-4 md:px-8"
-              id="plan-wizard-view"
-            >
-              {error && (
-                <div className="max-w-4xl mx-auto mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm flex items-center gap-2" id="error-alert">
-                  <span className="font-bold">Error:</span> {error}
+            viewMode === 'landing' ? (
+              <LandingPage
+                key="landing"
+                onStartPlanning={() => {
+                  setInitialGoalPreset("");
+                  setViewMode('setup');
+                }}
+                onTryPreset={(presetGoal) => {
+                  setInitialGoalPreset(presetGoal);
+                  setViewMode('setup');
+                }}
+              />
+            ) : (
+              <motion.div
+                key="setup"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="flex-1 overflow-y-auto py-10 px-4 md:px-8"
+                id="plan-wizard-view"
+              >
+                <div className="max-w-4xl mx-auto mb-6">
+                  <button
+                    onClick={() => {
+                      setInitialGoalPreset("");
+                      setViewMode('landing');
+                    }}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-200/80 rounded-lg text-xs font-bold text-slate-600 transition shadow-xs"
+                    id="back-to-landing-btn"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" /> Back to Homepage
+                  </button>
                 </div>
-              )}
-              <PlanForm onSubmit={handleGeneratePlan} isLoading={isLoading} />
-            </motion.div>
+                {error && (
+                  <div className="max-w-4xl mx-auto mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm flex items-center gap-2" id="error-alert">
+                    <span className="font-bold">Error:</span> {error}
+                  </div>
+                )}
+                <PlanForm onSubmit={handleGeneratePlan} isLoading={isLoading} initialGoal={initialGoalPreset} />
+              </motion.div>
+            )
           ) : (
             <motion.div
               key="dashboard"
@@ -404,7 +463,7 @@ export default function App() {
                     id="reset-plan-sidebar-btn"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
-                    Create New Plan
+                    Generate New Plan
                   </button>
                 </div>
               </aside>

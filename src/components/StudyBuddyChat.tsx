@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Send, Sparkles, X, Brain, HelpCircle, FileText, CheckCircle2, User, HelpCircleIcon } from "lucide-react";
+import { Send, Sparkles, X, Brain, HelpCircle, FileText, CheckCircle2, User } from "lucide-react";
 import { DayPlan, Task, ChatMessage } from "../types";
 
 interface StudyBuddyChatProps {

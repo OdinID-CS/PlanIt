@@ -11,25 +11,20 @@ const PORT = 3000;
 
 app.use(express.json());
 
-// Helper to get Gemini Client lazily and safely
-let aiClient: GoogleGenAI | null = null;
-
+// Helper to get Gemini Client lazily and safely on each request
 function getGeminiClient(): GoogleGenAI {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error("GEMINI_API_KEY environment variable is missing. Please add it in Settings > Secrets.");
   }
-  if (!aiClient) {
-    aiClient = new GoogleGenAI({
-      apiKey: apiKey,
-      httpOptions: {
-        headers: {
-          "User-Agent": "aistudio-build",
-        },
+  return new GoogleGenAI({
+    apiKey: apiKey,
+    httpOptions: {
+      headers: {
+        "User-Agent": "aistudio-build",
       },
-    });
-  }
-  return aiClient;
+    },
+  });
 }
 
 // 1. Generate Study/Project Plan Endpoint

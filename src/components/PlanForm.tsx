@@ -12,6 +12,7 @@ interface PlanFormProps {
     learningStyle: string;
   }) => void;
   isLoading: boolean;
+  initialGoal?: string;
 }
 
 const PRESETS = [
@@ -62,14 +63,35 @@ const LOADING_PHASES = [
   "Finalizing your micro-milestone tracking dashboard...",
 ];
 
-export default function PlanForm({ onSubmit, isLoading }: PlanFormProps) {
-  const [goal, setGoal] = useState("");
+export default function PlanForm({ onSubmit, isLoading, initialGoal = "" }: PlanFormProps) {
+  const [goal, setGoal] = useState(initialGoal);
   const [timeframe, setTimeframe] = useState<number>(5);
   const [timeframeUnit, setTimeframeUnit] = useState("Days");
   const [intensity, setIntensity] = useState("Moderate (3-4 hours/day)");
   const [knowledgeLevel, setKnowledgeLevel] = useState("Some Basics (Know terminology)");
   const [learningStyle, setLearningStyle] = useState("Balanced");
   const [loadingPhase, setLoadingPhase] = useState(0);
+
+  useEffect(() => {
+    if (initialGoal) {
+      setGoal(initialGoal);
+      const matched = PRESETS.find(p => p.goal === initialGoal);
+      if (matched) {
+        setTimeframe(matched.timeframe);
+        setTimeframeUnit(matched.timeframeUnit);
+        setIntensity(matched.intensity);
+        setKnowledgeLevel(matched.knowledgeLevel);
+        setLearningStyle(matched.learningStyle);
+      }
+    } else {
+      setGoal("");
+      setTimeframe(5);
+      setTimeframeUnit("Days");
+      setIntensity("Moderate (3-4 hours/day)");
+      setKnowledgeLevel("Some Basics (Know terminology)");
+      setLearningStyle("Balanced");
+    }
+  }, [initialGoal]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
